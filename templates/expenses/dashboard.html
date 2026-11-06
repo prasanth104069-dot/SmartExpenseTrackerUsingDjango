@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<section class="hero mb-4">
+  <div>
+    <div class="hero-label">Spent · {% for key, label in periods %}{% if period == key %}{{ label }}{% endif %}{% endfor %}</div>
+    <div class="hero-amount"><small>₹</small>{{ total|floatformat:2 }}</div>
+    <div class="hero-meta"><b>{{ count }}</b> transaction{{ count|pluralize }}{% if top_category %} &nbsp;·&nbsp; most on <b>{{ top_category.category }}</b>{% endif %}</div>
+  </div>
+  <div>
+    <div class="seg">
+      {% for key, label in periods %}<a href="?period={{ key }}" class="{% if period == key %}on{% endif %}">{{ label }}</a>{% endfor %}
+    </div>
+    <div class="hero-actions">
+      <div class="dropdown">
+        <button class="btn btn-ghost dropdown-toggle" data-bs-toggle="dropdown">Download report</button>
+        <ul class="dropdown-menu dropdown-menu-end">
+          <li><a class="dropdown-item" href="{% url 'download_report' %}?period={{ period }}&format=xlsx">Excel (.xlsx)</a></li>
+          <li><a class="dropdown-item" href="{% url 'download_report' %}?period={{ period }}&format=pdf">Printable (PDF)</a></li>
+        </ul>
+      </div>
+      <a class="btn btn-gold" href="{% url 'add_expense' %}">Add expense</a>
+    </div>
+  </div>
+</section>
+
+{% if count %}
+<div class="row g-3 mb-3">
+  <div class="col-lg-5"><div class="panel">
+    <h6>Where it went</h6>
+    <div class="row align-items-center g-3">
+      <div class="col-sm-5 col-lg-12 col-xl-5"><div class="chart-box" style="height:170px"><canvas id="categoryChart"></canvas></div></div>
+      <div class="col-sm-7 col-lg-12 col-xl-7" id="legend"></div>
+    </div>
+  </div></div>
+  <div class="col-lg-7"><div class="panel">
+    <h6>Day by day</h6>
+    <div class="chart-box"><canvas id="timeChart"></canvas></div>
+  </div></div>
+</div>
+
+<div class="panel">
+  <h6>Transactions</h6>
+  <div class="table-responsive">
+    <table class="ledger">
+      <thead><tr><th>Date</th><th>Description</th><th>Category</th><th class="text-end">Amount</th><th></th></tr></thead>
+      <tbody>
+        {% for e in expenses %}
+        <tr>
+          <td class="text-nowrap text-muted">{{ e.date|date:"d M" }}</td>
+          <td><div class="desc">{{ e.description }}</div>{% if e.notes %}<div class="note">{{ e.notes|truncatechars:60 }}</div>{% endif %}</td>
+          <td><span class="d-inline-flex align-items-center gap-2"><span class="dot cat-{{ e.category }}"></span>{{ e.get_category_display }}</span></td>
+          <td class="amt">₹{{ e.amount }}</td>
+          <td class="text-end text-nowrap">
+            <a class="rowlink" href="{% url 'edit_expense' e.pk %}">Edit</a>
+            <a class="rowlink del" href="{% url 'delete_expense' e.pk %}">Delete</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{{ chart_data|json_script:"chart-data" }}
+{% else %}
+<div class="panel empty">
+  <p class="mb-3">Nothing logged for this period. Add an expense and we'll sort it into a category for you.</p>
+  <a class="btn btn-primary" href="{% url 'add_expense' %}">Add expense</a>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if count %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script>
+  const d = JSON.parse(document.getElementById("chart-data").textContent);
+  const C = {Food:"#E9A23B",Travel:"#4C6FFF",Shopping:"#C65D9B",Bills:"#2E9E83",Entertainment:"#8B5CF6",Health:"#E5534B",Education:"#0EA5C6",Other:"#98A2B3"};
+  const sum = d.cat_values.reduce((a, b) => a + b, 0);
+  Chart.defaults.font.family = "Manrope, system-ui, sans-serif";
+
+  new Chart(document.getElementById("categoryChart"), {
+    type: "doughnut",
+    data: { labels: d.cat_labels, datasets: [{ data: d.cat_values, backgroundColor: d.cat_labels.map(l => C[l] || C.Other), borderWidth: 3, borderColor: "#fff" }] },
+    options: { cutout: "70%", maintainAspectRatio: false, plugins: { legend: { display: false } } }
+  });
+
+  document.getElementById("legend").innerHTML = d.cat_labels.map((l, i) =>
+    `<div class="legend-row"><span class="dot" style="--c:${C[l] || C.Other}"></span><span class="nm">${l}</span>` +
+    `<span>₹${d.cat_values[i].toLocaleString("en-IN")}</span><span class="pc">${Math.round(d.cat_values[i] / sum * 100)}%</span></div>`).join("");
+
+  new Chart(document.getElementById("timeChart"), {
+    type: "bar",
+    data: { labels: d.date_labels, datasets: [{ data: d.date_values, backgroundColor: "#0D1B2A", hoverBackgroundColor: "#E3B55B", borderRadius: 6, maxBarThickness: 34 }] },
+    options: {
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => " ₹" + c.parsed.y.toLocaleString("en-IN") } } },
+      scales: { x: { grid: { display: false }, border: { display: false } },
+                y: { beginAtZero: true, grid: { color: "#EEF0F3" }, border: { display: false }, ticks: { callback: v => "₹" + v } } }
+    }
+  });
+</script>
+{% endif %}
+{% endblock %}

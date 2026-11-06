@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Delete expense{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-6">
+    <div class="card shadow-sm"><div class="card-body p-4">
+      <h4 class="mb-3">Delete this expense?</h4>
+      <p class="mb-1"><strong>{{ expense.description }}</strong></p>
+      <p class="text-muted">₹{{ expense.amount }} on {{ expense.date|date:"d M Y" }} ({{ expense.get_category_display }})</p>
+      <form method="post" class="d-flex gap-2">
+        {% csrf_token %}
+        <button class="btn btn-danger">Delete expense</button>
+        <a class="btn btn-outline-secondary" href="{% url 'dashboard' %}">Keep it</a>
+      </form>
+    </div></div>
+  </div>
+</div>
+{% endblock %}
